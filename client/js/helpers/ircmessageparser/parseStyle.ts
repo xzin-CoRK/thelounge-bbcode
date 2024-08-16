@@ -35,6 +35,20 @@ const hexColorRx = /^([0-9a-f]{6})(?:,([0-9a-f]{6}))?/i;
 // This regex allows line feed character
 const controlCodesRx = /[\u0000-\u0009\u000B-\u001F]/g;
 
+// Converts a string with bbcode formatting to use IRC-compliant styling control codes
+function parseBBCode(text: string): string {
+	const parsedText: string = text
+		.replace(/\[b\](.*?)\[\/b\]/gi, BOLD + "$1" + BOLD)
+		.replace(/\[i\](.*?)\[\/i\]/gi, ITALIC + "$1" + ITALIC)
+		.replace(/\[u\](.*?)\[\/u\]/gi, UNDERLINE + "$1" + UNDERLINE)
+		.replace(/\[s\](.*?)\[\/s\]/gi, STRIKETHROUGH + "$1" + STRIKETHROUGH)
+		.replace(/\[color=#([0-9a-f]{6})\](.*?)\[\/color\]/gi, HEX_COLOR + "$1" + "$2" + HEX_COLOR)
+		.replace(/\[url\](.*?)\[\/url\]/gi, "$1")
+		.replace(/\[img(?:=\d+)?\](.*?)\[\/img\]/gi, "$1")
+		.replace(/\[url=(.*?)\](.*?)\[\/url\]/gi, "$1");
+	return parsedText;
+}
+
 // Converts a given text into an array of objects, each of them representing a
 // similarly styled section of the text. Each object carries the `text`, style
 // information (`bold`, `textColor`, `bgcolor`, `italic`,
@@ -43,6 +57,8 @@ function parseStyle(text: string) {
 	const result: ParsedStyle[] = [];
 	let start = 0;
 	let position = 0;
+
+	const bbcodeParsedText = parseBBCode(text);
 
 	// At any given time, these carry style information since last time a styling
 	// control code was met.
@@ -77,7 +93,7 @@ function parseStyle(text: string) {
 	const emitFragment = () => {
 		// Uses the text fragment starting from the last control code position up to
 		// the current position
-		const textPart = text.slice(start, position);
+		const textPart = bbcodeParsedText.slice(start, position);
 
 		// Filters out all non-style related control codes present in this text
 		const processedText = textPart.replace(controlCodesRx, " ");
@@ -110,8 +126,8 @@ function parseStyle(text: string) {
 	// bumping the `position` cursor. Every time a new special "styling" character
 	// is met, an object gets created (with `emitFragment()`)information on text
 	// encountered since the previous styling character.
-	while (position < text.length) {
-		switch (text[position]) {
+	while (position < bbcodeParsedText.length) {
+		switch (bbcodeParsedText[position]) {
 			case RESET:
 				emitFragment();
 				resetStyle();
@@ -130,7 +146,7 @@ function parseStyle(text: string) {
 				emitFragment();
 
 				// Go one step further to find the corresponding color
-				colorCodes = text.slice(position + 1).match(colorRx);
+				colorCodes = bbcodeParsedText.slice(position + 1).match(colorRx);
 
 				if (colorCodes) {
 					textColor = Number(colorCodes[1]);
@@ -154,7 +170,7 @@ function parseStyle(text: string) {
 			case HEX_COLOR:
 				emitFragment();
 
-				colorCodes = text.slice(position + 1).match(hexColorRx);
+				colorCodes = bbcodeParsedText.slice(position + 1).match(hexColorRx);
 
 				if (colorCodes) {
 					hexColor = colorCodes[1].toUpperCase();
